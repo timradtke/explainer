@@ -1,6 +1,6 @@
-MIT License
+# MIT License
 
-Copyright (c) 2022 Tim Radtke
+Copyright (c) 2022 explainer authors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -1,0 +1,213 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "man/figures/README-",
+  out.width = "100%"
+)
+```
+
+# explainer
+
+<!-- badges: start -->
+<!-- badges: end -->
+
+The `explainer` package is a case study of how structural time series models (as provided by, for example, the `bsts` package) can be summarized in words for easier interpretation. 
+
+While structural time series models are inherently interpretable, it can be tedious to inspect their parameters to understand what the model has derived from the data. The textual summaries provided by `explainer` make the interpretation more approachable.
+
+## Installation
+
+You can install the development version of explainer from [GitHub](https://github.com/) with:
+
+``` r
+# install.packages("devtools")
+devtools::install_github("timradtke/explainer")
+```
+
+## Getting Started
+
+### Fit BSTS on AirPassengers
+
+Since we aim to describe a model fitted with the `bsts` package, we load both `bsts` and `explainer`.
+
+```{r example, warning = FALSE, message = FALSE}
+library(bsts)
+library(explainer)
+```
+
+Let's use the Air Passengers data as simplest example on which we fit the model that we want to explain in the next step.
+
+```{r fit_airpassengers}
+y <- log(AirPassengers)
+ss <- AddSemilocalLinearTrend(list(), y)
+ss <- AddSeasonal(ss, y, nseasons = 12)
+
+model <- bsts(
+  formula = y, 
+  state.specification = ss,
+  niter = 5000,
+  ping = 0
+)
+
+pred <- predict(model, horizon = 12, burn = 1000)
+```
+
+This is the model's forecast for the next year on the log-transformed scale:
+
+```{r forecast_airpassengers, echo = FALSE, fig.height = 3}
+plot(pred, xlab = "Index", ylab = "Value")
+```
+
+### Explain the Model and its Forecast
+
+To explain the model, we only need to provide the fitted model object (not the forecast) to the `explain()` function. As usual for the `bsts` package, we also provide the `burn` parameter. The `seasonality` can be inferred from the model object, but one can also explicitly provide it alongside the `start_period` which indicates in which month of the year the series begins (in the case of yearly seasonality and monthly data).
+
+Note: The paragraphs after the code chunk up to the horizontal line are the "pretty-printed" explanation object.
+
+```{r airpassengers_explanation, results = "asis"}
+explanation <- explain(
+  object = model,
+  burn = 1000,
+  seasonality = 12,
+  start_period = 1
+)
+print(explanation)
+```
+
+***
+
+Alternatively, one can also investigate individual components of the explanation object. The explanation is a list of the following components:
+
+```{r}
+names(explanation)
+```
+
+Some components consist of additional information besides the description itself. For example, the `benchmark` component also lists the top 5 observations for which the model performed better (or worse) than benchmark comparison models.
+
+```{r}
+explanation$benchmark
+```
+
+This can be helpful to reference certain observations when plotting the data alongside the explanation:
+
+```{r plot_with_improvements, echo = FALSE, fig.height = 3, fig.cap = "Blue circles indicate observations on which the model improves the most compared to the seasonal naive benchmark."}
+plot(pred, xlab = "Index", ylab = "Value")
+if (length(explanation$benchmark$better_than_snaive) > 0) {
+  points(
+    explanation$benchmark$better_than_snaive,
+    y[explanation$benchmark$better_than_snaive],
+    col = "blue"
+  )
+}
+```
+
+## Description of Anomalies
+
+The `explain()` function also identifies possibly anomalous historical observations (given the model fitted on the historical data). This can be especially helpful when dealing with recent anomalies.
+
+Let's first add some anomalies to the otherwise very clean example data; we can then repeat training the model as before.
+
+```{r refit_with_anomalies}
+y[length(y)] <- y[length(y)] + 0.5
+y[length(y) - 55] <- y[length(y) - 55] - 0.25
+
+ss <- AddSemilocalLinearTrend(list(), y)
+ss <- AddSeasonal(ss, y, nseasons = 12)
+
+model <- bsts(
+  formula = y, 
+  state.specification = ss,
+  niter = 5000,
+  ping = 0
+)
+
+pred <- predict(model, horizon = 12, burn = 1000)
+```
+
+We can re-create the explanation and focus on the adjusted explanation of the anomalies:
+
+```{r explanation_with_anomalies}
+explanation <- explain(
+  object = model,
+  burn = 1000,
+  start_period = 1
+)
+
+print(explanation$anomalies)
+```
+
+The `anomalies` component also provides information about the exact location of the possible anomalies which we can use to plot them:
+
+```{r plot_with_anomalies, echo = FALSE, fig.height=3}
+plot(pred)
+points(
+  x = explanation$anomalies$anomalies,
+  y = y[explanation$anomalies$anomalies],
+  col = "blue",
+  
+)
+```
+
+The forecast was in fact impacted by the outlier at the most recent observation, as highlighted in the explanation.
+
+## Explain Various Model Specifications
+
+Structual time series models can take various forms as their components can be arbitrarily mixed and matched. The `explain()` function is currently limited to explaining at most two components used as state specification via the `bsts::Add...()` functions. It is also limited to the `gaussian` and `student` families, and models without regression component.
+
+To see the explanation of a model different from the one above, let's look at the Local Level model and a time series that follows that model.
+
+### Local Level Model
+
+```{r local_level_generate, echo = FALSE}
+#' Sample a Local-Level Time Series via Multiple Sources of Error
+gen_ssm_series <- function(n, sigma_obs, sigma_level, l_0 = 0) {
+  l_t <- rep(l_0, times = n + 1)
+  y_t <- rep(NA, times = n + 1)
+  
+  for (i in 2:(n+1)) {
+    l_t[i] <- l_t[i-1] + rnorm(n = 1, mean = 0, sd = sigma_level)
+    y_t[i] <- l_t[i-1] + rnorm(n = 1, mean = 0, sd = sigma_obs)
+  }
+  
+  return(y_t[-1])
+}
+
+set.seed(9138)
+y <- gen_ssm_series(n = 68, sigma_obs = 5, sigma_level = 1, l_0 = 100)
+```
+
+```{r local_level_plot, echo = FALSE, fig.height = 3}
+plot(y, type = "l")
+```
+
+We can fit the local level model to that time series:
+
+```{r local_level_fit}
+ss <- bsts::AddLocalLevel(list(), y)
+
+model <- bsts::bsts(
+  y, 
+  state.specification = ss, 
+  niter = 5000, 
+  ping = 0
+)
+```
+
+Now, even though the model is fit without seasonal component, we can act as if the data is observed monthly and thus could have a yearly seasonality.
+
+```{r local_level_explanation, results = "asis"}
+explanation <- explain(
+  object = model,
+  burn = 1000,
+  seasonality = 12,
+  start_period = 1
+)
+print(explanation)
+```
