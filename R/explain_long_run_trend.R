@@ -8,7 +8,7 @@ explain_long_run_trend <- function(object, burn) {
   
   is_stable <- mean(object$trend.slope.ar.coefficient[mcmc_index] < 0.25) > 0.8
   
-  explanation <- "The model does not predict a distinct long-run trend."
+  explanation <- "The model does not predict a clear upward or downward long-run trend." # nolint
   if (is_likely_positive || is_likely_negative) {
     direction <- c("positive", "negative")[1 + is_likely_negative]
     explanation <- paste0(

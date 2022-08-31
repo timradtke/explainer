@@ -57,7 +57,7 @@ explain_upcoming_season <- function(object, burn, n_obs, seasonality) {
       )
     } else {
       explanation <- paste0(
-        "The series' seasonality is expected to bring up next ",
+        "The series' seasonality is expected to push up next ",
         period_step_name_s,
         " observation, similar to a ",
         period_name,

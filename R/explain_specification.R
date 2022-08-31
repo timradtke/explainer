@@ -13,7 +13,7 @@ explain_specification <- function(
   }
   
   if (specification == "SeasonalSemilocalLinearTrend") {
-    return("The chosen model takes into account seasonality and allows for a long-run trend with short-term fluctuation around said trend.")
+    return("The chosen model takes into account seasonality and allows for a long-run trend with short-term fluctuation around the trend.")
   } else if (specification == "SeasonalLocalLinearTrend") {
     return("The chosen model takes into account seasonality and allows for a trend that adjusts over time and is projected into the future.")
   } else if (specification == "SeasonalLocalLevel") {
